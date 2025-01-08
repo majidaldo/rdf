@@ -8,10 +8,13 @@ on:
 jobs:
   publish-automate-function-version: # make sure the action works on a clean machine without building
     runs-on: ubuntu-latest
-    container: ghcr.io/astral-sh/uv:debian-slim
     env:
       FUNCTION_SCHEMA_FILE_NAME: functionSchema.json
     steps:
+      - name: install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+            version: latest
       - name: Extract functionInputSchema
         id: extract_schema
         run: |
