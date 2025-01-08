@@ -1,16 +1,46 @@
-# We use the official Python 3.11 image as our base image and will add our code to it. For more details, see https://hub.docker.com/_/python
-FROM python:3.11-slim
+# to run the function from a container
 
-# We install poetry to generate a list of dependencies which will be required by our application
-RUN pip install poetry
+# should match .python-version
+ARG PYVER=3.11.9
+FROM python:${PYVER}-alpine
+# this is a musl-based instead of glibc debian/ubuntu
+# but uv doesn't manage musl-based
+# might try a slimmed ubuntu
+# (see below)
+ARG WORKDIR=/spklrdf
+#https://github.com/astral-sh/uv/pull/6834
+ENV UV_PROJECT_ENVIRONMENT=${WORKDIR}/.venv
+ARG UV_OPTS=--frozen --locked
 
-# We set the working directory to be the /home/speckle directory; all of our files will be copied here.
-WORKDIR /home/speckle
 
-# Copy all of our code and assets from the local directory into the /home/speckle directory of the container.
-# We also ensure that the user 'speckle' owns these files, so it can access them
-# This assumes that the Dockerfile is in the same directory as the rest of the code
-COPY . /home/speckle
+RUN apk update
+RUN apk add openjdk21-jre curl bash
+# for convenience
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.cargo/bin:/root/.local/bin
+# install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+# make dir inside container same as outside (?)
+WORKDIR ${WORKDIR}
+# https://github.com/GoogleContainerTools/kaniko/issues/1568
+# would like to use build mounts so i dont have to copy:
+# RUN --mount=
+# https://github.com/astral-sh/uv/issues/6890
+#   no uv python build for alpine yet
+# RUN uv python install
+# errors if .python-version is diferent
+COPY .python-version .python-version
+COPY uv.lock uv.lock
+COPY pyproject.toml pyproject.toml
+# dont know how to recursively copy while maintianing structure!
+COPY src/spklrdf/*.py src/spklrdf/
+COPY *.py .
+copy README.md .
+run uv sync --no-group dev
+# # TODO: really only want .venv. use multistage build
+RUN echo "PATH=${PATH}"                         >> /etc/profile
+RUN echo "source ${WORKDIR}/.venv/bin/activate" >> /etc/profile
+# # make `podman run <thisimage> <.venv exe>` work
+ENTRYPOINT [ "/bin/bash", "-l", "-c"]
+# # default arg to above
+CMD ["bash"]
 
-# Using poetry, we generate a list of requirements, save them to requirements.txt, and then use pip to install them
-RUN poetry export --format requirements.txt --output /home/speckle/requirements.txt && pip install --requirement /home/speckle/requirements.txt
