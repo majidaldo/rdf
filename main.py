@@ -54,7 +54,7 @@ def automate_function(
         # # Set the automation context view to the original model/version view
         # # to show the offending objects.
         # automate_context.set_context_view()
-
+        ...
     else:
         automate_context.mark_run_success("No forbidden types found.")
 
